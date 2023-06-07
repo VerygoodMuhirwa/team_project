@@ -5,7 +5,8 @@ const students= require("../models/studentsModel")
 const { admin } = require("../middleware/admin")
 const classModel= require("../models/classModel")
 const classesModel = require("../models/classesModel")
-const {auth}= require("../middleware/auth")
+const {auth}= require("../middleware/auth");
+const studentsModel = require("../models/studentsModel");
 const router = express.Router();
 const validateSchool = (item) => {
   const Schema = new Joi.object({
@@ -102,6 +103,40 @@ router.get("/getAllClasses",  async (req, res) => {
 router.post("/getAllStudentsByClass/:id", [admin, auth], async (req, res) => {
   
 } )
+
+
+router.get("/removeStudent", async (req, res) => {
+  const { studentName,className } = req.body
+  try {
+    //check whether the student exists 
+    const studentExist = await studentsModel.findOneAndDelete({ studentName,className })
+    if (!studentExist) return res.status(404).json({ Message: "That student does not exists" })
+
+    //check the student in the school db 
+    const genderCount = await schoolDb.findOne({});
+
+    if (studentExist.gender === "female" || studentExist.gender === "FEMALE" || studentExist.gender === "Female") {
+      genderCount.totalFemales -= 1;
+    } else if (studentExist.gender === "male" || studentExist.gender === "MALE" || studentExist.gender === "Male") {
+      genderCount.totalMales -= 1;
+      genderCount.totalPopulation =
+        genderCount.totalFemales + genderCount.totalMales;
+    }
+    await genderCount.save();
+   
+//do this to remove the student from the class
+    const deleteStudentFromClass = await classModel.findOne({})
+    deleteStudentFromClass.students.filter((student) => student.studentId !== studentExist._id)
+    await deleteStudentFromClass.save();
+    await studentExist.save()
+    
+    return res.status(200).json({Message:"The student removed successfully"})
+    
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send({"Message":"Internal server error"})
+  }
+})
 
 module.exports = router
 

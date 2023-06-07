@@ -7,13 +7,14 @@ const students = require("../models/studentsModel")
 const { admin } = require("../middleware/admin")
 const { auth } = require("../middleware/auth")
 const jwt= require("jsonwebtoken")
-const marksModel= require("../models/marksModel")
+const marksModel= require("../models/marksModel");
+const studentsModel = require("../models/studentsModel");
 const validateStudent = (item) => {
   const Schema = new Joi.object({
     studentName: Joi.string().min(3).required(),
     className: Joi.string().min(3).required(),
     gender: Joi.string().min(4).required(),
-
+    
     email: Joi.string().email({ minDomainSegments: 2 }).required(),
     password: Joi.string()
       .min(6)
@@ -41,7 +42,7 @@ router.post("/registerStudent",async (req, res) => {
   if (error) return res.status(404).send({ "Error": error.details[0].message });
 
   try {
-    const { studentName,gender,  className, email, password } = req.body;
+    const { studentName,gender, pic,  className, email, password } = req.body;
 
     const studentExistsInSchool = await students
       .findOne({ studentName, className, gender })
@@ -51,6 +52,8 @@ router.post("/registerStudent",async (req, res) => {
         .status(404)
         .json({ message: "Not allowed to create the account " });
 
+    
+    
     const studentExists = await studentDb.findOne({ email });
     if (studentExists) {
       return res.status(409).send("The student with that email already exists");
@@ -59,16 +62,26 @@ router.post("/registerStudent",async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const harshedPassword = await bcrypt.hash(password, salt);
 
+
+    //insert the schoolid for the student 
+    const studentSchoolId= studentExistsInSchool._id
     const newStudent = await studentDb.create({
       email,
       password: harshedPassword,
       className,
+      pic,
+  studentSchoolId:studentSchoolId,
       studentName,
     });
+
+
     if (!newStudent)
       return res
         .status(404)
         .json({ message: "Faced an error when creating a user " });
+    
+  
+    
     return res.status(201).send(newStudent);
   } catch (error) {
     return res.status(500).json({message:"Internal server errror"})
