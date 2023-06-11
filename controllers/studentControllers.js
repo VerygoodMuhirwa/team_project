@@ -6,9 +6,17 @@ const router = express.Router()
 const students = require("../models/studentsModel")
 const { admin } = require("../middleware/admin")
 const { auth } = require("../middleware/auth")
+const { teacherAuth } = require("../middleware/teacherAuth")
+const {teacherAdmin}= require("../middleware/teacherAdmin")
 const jwt= require("jsonwebtoken")
 const marksModel= require("../models/marksModel");
 const studentsModel = require("../models/studentsModel");
+const classesModel = require("../models/classesModel");
+
+const {studentAuth}= require("../middleware/studentAuth")
+const {studentAdmin} = require("../middleware/studentAdmin")
+const classModel = require("../models/classModel");
+const schoolDb= require("../models/schoolModel")
 const validateStudent = (item) => {
   const Schema = new Joi.object({
     studentName: Joi.string().min(3).required(),
@@ -18,19 +26,14 @@ const validateStudent = (item) => {
     email: Joi.string().email({ minDomainSegments: 2 }).required(),
     password: Joi.string()
       .min(6)
-      .required()
-      .pattern(/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{6,}$/)
-      .message(
-        " the password must contain at least one alphabet, one digit, and one special character from the set !@#$%^&*. It should also be at least 6 characters long. If the password doesn"
-      ),
-  });
+      .required() });
 
   return Schema.validate(item);
 };
 
 
-const generateAuthToken = (id) => {
-  const token = jwt.sign({ id: id, isAdmin: true }, process.env.JWTPRIVATEKEY, {
+const generateAuthToken = (item) => {
+  const token = jwt.sign({ id: this._id, role:"student", className:this.className ,studentName:this.studentName}, process.env.JWTSTUDENTKEY, {
     expiresIn: "1d",
   });
   return token;
@@ -105,12 +108,11 @@ router.post("/loginStudent",async (req, res) => {
     return res.status(404).send("Invalid email or password");
   }
 
-  const token = await generateAuthToken(student._id);
+  const token = await generateAuthToken(student);
   return res
     .status(200)
     .send({ message: "logged in successfully", Token: token });
 })
-
 
 
 router.get("/searchLesson",[admin,auth], async (req, res) => {
@@ -136,6 +138,36 @@ router.get("/searchLesson",[admin,auth], async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 });
+
+
+
+router.post(
+  "/getAllStudentsByClass",[teacherAdmin,teacherAuth],
+ 
+  async (req, res) => {
+    const { className } = req.body
+    //check the class by its name
+    const getClass= await classesModel.findOne({className})
+    if (!getClass) return res.status(404).json({ message: "Class not found" })
+    
+   //get all members of the class 
+    const classExists = await classModel.findOne({ classId: getClass._id })
+    const allStudents = classExists.students
+    
+
+    return res.status(200).json({students:allStudents})
+  }
+
+);
+
+
+router.get("/getStudentMarks",[studentAdmin, studentAuth], async (req, res) => {
+  const studentName = req.user.studentName
+  const studentMarks = await marksModel.findOne({ studentName })
+  if(!studentMarks)return res.status(404).json({message:"no marks inserted yet"})
+await res.status(200).send(studentMarks)
+})
+
 
 
 

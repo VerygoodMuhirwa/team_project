@@ -16,6 +16,14 @@ const classSchema = new Schema({
             studentId: {
                 type: Schema.Types.ObjectId,
                 ref:"studentsModel"
+            },
+            studentName: {
+                type: String,
+                required:true
+            },
+            gender: {
+                type: String,
+                required:true
             }
         }
     ]
