@@ -61,7 +61,10 @@ router.post("/deleteClass",[admin,auth], async (req, res) => {
         const deleteClass = await classesModel.findOneAndDelete({ className })
         if (!deleteClass) return res.status(404).json({ message: "The class not found" })
         const schoolCount = await schoolModel.findOne({})
-        schoolCount.totalClasses -= 1
+      schoolCount.totalClasses -= 1
+      if (schoolCount.totalClasses == 0) {
+        schoolCount.totalClasses==0
+      }
         await schoolCount.save()
         //also remove from teh class model
  await classModel.findOneAndDelete({ classId: deleteClass._id })

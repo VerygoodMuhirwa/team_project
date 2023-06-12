@@ -23,7 +23,7 @@ router.post("/addLesson", async (req, res) => {
         //check if the teacher exists 
         const teacherExists = await teachersModel.findOne({ teacherName })
         if(!teacherExists)return res.status(404).json({message:"That teacher not found "})
-
+        
          // chekckk if the lesson exists
         
         

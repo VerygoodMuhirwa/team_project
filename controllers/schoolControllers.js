@@ -8,6 +8,7 @@ const classesModel = require("../models/classesModel")
 const {auth}= require("../middleware/auth");
 const studentsModel = require("../models/studentsModel");
 const lessonModel = require("../models/lessonModel");
+const schoolModel = require("../models/schoolModel");
 const router = express.Router();
 const validateSchool = (item) => {
   const Schema = new Joi.object({
@@ -18,6 +19,7 @@ const validateSchool = (item) => {
     sectorName: Joi.string().required(),
     cellName: Joi.string().required(),
     description: Joi.string().required(),
+    villageName: Joi.string().required()
   });
 
   return Schema.validate(item);
@@ -30,6 +32,14 @@ router.post("/addSchoolDescription",[admin,auth],async (req, res) => {
     console.log(error.details[0].message);
     return res.status(404).json({ error });
   }
+
+  const schoolExists = await schoolDb.findOne({ schoolName: req.body.schoolName })
+  if (schoolExists.schoolName === req.body.schoolName && schoolExists.schoolMoto === req.body.schoolMoto && schoolExists.provinceName === req.body.provinceName && schoolExists.districtName === req.body.districtName && schoolExists.sectorName === req.body.sectorName && schoolExists.cellName === req.body.cellName && schoolExists.villageName === req.body.villageName) {
+    return res.status(409).send({message:"That school already exists"})
+  }
+
+  console.log(schoolExists);
+if(schoolExists)return res.status(409).send({message:"That school already exists"})
   const schoolInfo = await schoolDb.create(req.body);
   if (!schoolInfo) {
     return res
@@ -39,6 +49,14 @@ router.post("/addSchoolDescription",[admin,auth],async (req, res) => {
     return res.status(200).json({ schoolInfo });
   }
 });
+
+router.post("/removeSchool", [admin, auth], async (req, res) => {
+  const { schoolName } = req.body
+  const schoolExists = await schoolModel.findOne({ schoolName })
+  if(!schoolExists)return res.status(404).send({message:"school not found "})
+  await schoolModel.findOneAndDelete({ schoolName })
+  return res.status(200).send({message:"School removed successfully"})
+})
 
 
 

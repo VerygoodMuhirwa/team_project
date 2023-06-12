@@ -33,9 +33,7 @@ const validateUser = (item) => {
       .email({ minDomainSegments: 2 })
       .required(),
     phoneNumber: Joi.string().required().min(10),
-    password: Joi.string().min(6).required().pattern(/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{6,}$/)
-  .message(' the password must contain at least one alphabet, one digit, and one special character from the set !@#$%^&*. It should also be at least 6 characters long. If the password doesn')
-  });
+    password: Joi.string().min(6).required()});
   return Schema.validate(item);
 };
 
@@ -60,20 +58,20 @@ router.post("/createUser", async (req, res) => {
     return res.status(409).send("The user with that email already exists");
     }
   //send a confirmation code
-  const confirmationCode = await generateConfirmationCode();
-  const message = await client.messages.create({
-    from: process.env.twilioPhoneNumber,
-    to: phoneNumber,
-    body: `Your confirmation code is ${confirmationCode}`,
-  });
-        console.log("Reached here");
+  // const confirmationCode = await generateConfirmationCode();
+  // const message = await client.messages.create({
+  //   from: process.env.twilioPhoneNumber,
+  //   to: phoneNumber,
+  //   body: `Your confirmation code is ${confirmationCode}`,
+  // });
+  //       console.log("Reached here");
 
 
-  if (!message) {
-    return res.status(400).send("Failed to send a confirmation code");
-  }
+  // if (!message) {
+  //   return res.status(400).send("Failed to send a confirmation code");
+  // }
 
-  console.log("Confirmation code sent successfully");
+  // console.log("Confirmation code sent successfully");
 
   const salt = await bcrypt.genSalt(10);
   const harshedPassword = await bcrypt.hash(password, salt);
@@ -206,7 +204,7 @@ router.post(
 );
 
 
-router.get("/getTopFiveStudentsInSchool", async (req, res) => {
+router.get("/getTopFiveStudentsInSchool",[admin, auth], async (req, res) => {
  
   try {
       const topFive = await marksModel.find().sort({ percentage: -1 });
