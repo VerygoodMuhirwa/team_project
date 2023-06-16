@@ -3,25 +3,16 @@ const Schema = mongoose.Schema
 
 const markSchema = new Schema(
   {
-    studentId: {
+    student: {
       type: Schema.Types.ObjectId,
       ref: "studentsModel",
     },
-    studentName: {
-    type:String,
-    required:true
-  },
-    className: {
-      type: String,
-      required: true,
+    Class: {
+      type: Schema.Types.ObjectId,
+      ref: "classesMddel",
     },
     marks: [
       {
-        lessonName: {
-          type: String,
-          required: true,
-        },
- 
         marks: {
           type: Number,
           required: true,
@@ -32,12 +23,16 @@ const markSchema = new Schema(
         },
         quizDescription: {
           type: String,
-          required:true
+          required: true,
         },
         comment: {
           type: String,
-          required:true
-        }
+          required: true,
+        },
+        lesson: {
+          type: Schema.Types.ObjectId,
+          ref: "lessonsModel",
+        },
       },
     ],
     totalMarks: {
@@ -46,7 +41,6 @@ const markSchema = new Schema(
       default: 0,
     },
     totalOutOfMarks: {
-
       type: Number,
       required: true,
       default: 0,

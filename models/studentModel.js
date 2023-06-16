@@ -3,27 +3,30 @@ const Schema = mongoose.Schema
 
 const studentSchema = new Schema(
   {
-    studentName: {
-      type: String,
-      required:true
+    student: {
+      type: Schema.Types.ObjectId,
+      ref: "studentsModel",
     },
-    
-    studentSchoolId: {
-            type: Schema.Types.ObjectId,
-ref:"studentsModel",
+    school: {
+      type: Schema.Types.ObjectId,
+      ref: "schoolModel",
     },
-
- email: {
+    Class: {
+      type: Schema.Types.ObjectId,
+      ref: "classesModel",
+    },
+    email: {
       type: String,
     },
 
     password: {
       type: String,
-      required: true
+      required: true,
     },
-    className: {
+
+    gender: {
       type: String,
-      required:true
+      requierd: true,
     },
     pic: {
       type: String,
@@ -36,6 +39,6 @@ ref:"studentsModel",
 );
 
 
-const studentModel = mongoose.model("StudentModel", studentSchema)
+const studentModel = mongoose.model("studentModel", studentSchema)
 
 module.exports= studentModel

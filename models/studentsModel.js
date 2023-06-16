@@ -11,12 +11,16 @@ const studentsSchema = new Schema({
         type: String,
         required:true
     },
-    className: {
-        type: String,
-        required:true
+    Class: {
+        type: Schema.Types.ObjectId,
+        ref:"classesModel"
+    },
+    school: {
+        type: Schema.Types.ObjectId,
+        ref:"schoolModel"
     }
 
 }, { timestamps: true })
 
-const studentsModel = mongoose.model("StudentsModel", studentsSchema)
+const studentsModel = mongoose.model("studentsModel", studentsSchema)
 module.exports= studentsModel

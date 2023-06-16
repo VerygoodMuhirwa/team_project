@@ -6,16 +6,31 @@ const newTeachersSchema = new Schema({
         type: String,
         required:true
     },
-
-    lessons: [{
-        className: {
-            type: String,
-            required:true
-        },
-        lessonName: {
-            type: String,
-            required:true
-        }
+    school: {
+        type: Schema.Types.ObjectId,
+        ref:"schoolModel"
+    },
+    gender: {
+        type: String,
+        required:true
+    },
+     pic: {
+      type: String,
+      required: true,
+      default:
+        "https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg",
+    },
+  
+    
+        lessons: [{
+            Class: {
+                type: Schema.Types.ObjectId,
+                ref:"classesModel"
+            },
+            subject: {
+                type: Schema.Types.ObjectId,
+                ref:"lessonsModel"
+            }
     }]
 
 }, { timestamps: true })

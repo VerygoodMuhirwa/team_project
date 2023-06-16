@@ -6,32 +6,36 @@ const Schema = mongoose.Schema
 
 const teacherSchema = new Schema(
   {
-    teacherName: {
-      type: String,
-      required: true,
+    teacher: {
+      type: Schema.Types.ObjectId,
+      ref: "teachersModel",
     },
-    lessons: [
-      {
-        lessonName: {
-          type: String,
-          required: true,
-        },
-
-        className: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
     email: {
       type: String,
       required: true,
       unique: true,
     },
+    school: {
+      type: Schema.Types.ObjectId,
+      ref: "schoolModel",
+    },
+    Class: {
+      type: Schema.Types.ObjectId,
+      ref: "classesModel",
+    },
     password: {
       type: String,
       required: true,
     },
+    lesson: {
+      type: Schema.Types.ObjectId,
+      ref: "lessonsModel",
+    },
+    gender: {
+      type: String,
+      required: true,
+    },
+
     pic: {
       type: String,
       required: true,

@@ -5,20 +5,24 @@ const teacherDb = require("../models/teacherModel");
 const jwt = require("jsonwebtoken");
 const express = require("express");
 const lessonModel = require("../models/lessonModel");
-
+const { teacherAdmin } = require("../middleware/teacherAdmin");
+const { teacherAuth } = require("../middleware/teacherAuth");
 const teachersModel = require("../models/teachersModel");
 const { admin } = require("../middleware/admin")
 const {auth}= require("../middleware/auth")
 const classesModel = require("../models/classesModel");
 const teacherModel = require("../models/teacherModel");
+const schoolModel = require("../models/schoolModel");
 const router = express.Router();
 const validateTeacher = (item) => {
   const Schema = new Joi.object({
-    teacherName: Joi.string().min(3).required(),
+    teacher: Joi.string().min(3).required(),
     email: Joi.string().email({ minDomainSegments: 2 }).required(),
     password: Joi.string().min(6).required(),
-    lessonName: Joi.string().required(),
-      className:Joi.string().required()
+    lesson: Joi.string().required(),
+    Class: Joi.string().required(),
+    gender: Joi.string().required(),
+    school: Joi.string().required(),
   });
 
   return Schema.validate(item);
@@ -30,8 +34,8 @@ const validateTeacher = (item) => {
 
 
 //This is the function to generate the token for the teacher 
-const generateAuthToken = (item) => {
-  const token = jwt.sign({ id: this._id, lessonName:this.lessonName ,role:"teacher" }, process.env.TEACHERPRIVATEKEY, {
+const generateAuthToken = (id, lesson) => {
+  const token = jwt.sign({ id,role:"teacher" , lesson}, process.env.TEACHERPRIVATEKEY, {
     expiresIn: "1d",
   });
   return token;
@@ -42,55 +46,41 @@ router.post("/registerTeacher",async (req, res) => {
   if (error) return res.status(404).json({ error: error.details[0].message });
 
 try {
-  const { teacherName, email, password, lessonName, className } = req.body;
-  console.log(req.body);
-  const teacherExists = await teacherDb.findOne({ email });
+  const { teacher, email, password, lesson,  school, Class } = req.body;
+let {pic} = req.body
+  let gender = req.body.gender.toLowerCase()
+
+  const schoolTeacher = await teachersModel.findById(teacher)
+  if (!schoolTeacher) return res.status(404).send({ message: "Teacher not found " })
+
+  const teacherExists = await teacherModel.findOne({ email });
   if (teacherExists) {
     return res.status(409).send("The teacher with that email already exists");
   }
 
-  const lessonExists = await lessonModel.findOne({ lessonName });
+  const lessonExists = await lessonModel.findById({_id: lesson , Class, school});
   if (!lessonExists)
     return res.status(404).json({ message: "The lesson not found " });
-
+  
   const salt = await bcrypt.genSalt(10);
   const harshedPassword = await bcrypt.hash(password, salt);
+  
   //check if the lesson exists in the database
 
-  const newTeacher = await teacherDb.create({
+  const newTeacher = await teacherModel.create({
     email,
-    teacherName,
+    teacher,
+    gender,
     password: harshedPassword,
+    pic,
+    lesson
   });
-  newTeacher.lessons.push({ lessonName, className });
-  await newTeacher.save()
-  if (!newTeacher)
-    return res
-      .status(404)
-      .json({ message: "Faced an error when creating a teacher account " });
 
-  const teacherCount = await schoolDb.findOne({});
-  teacherCount.totalTeachers += 1;
-
+    const teacherCount = await schoolModel.findOne({});
+    teacherCount.totalTeachers += 1;
   await teacherCount.save();
-
-  //add the teacher to the teachers table for all teachers in a schoool
-  const teachers = await teachersModel.create({teacherName});
-  teachers.lessons.push({ className, lessonName });
-  await teachers.save();
-
-//thereafter you have to insert the teacher into the teachers model
-  await teachersModel.create({
-    teacherName, lessons: [
-      {
-    className,lessonName
-      }
-      
-    ]
-  })
-  
-
-  return res.status(201).send(newTeacher);
+  const teacherToReturn = await teacherModel.find({_id: newTeacher._id}).populate("lesson")
+   return res.status(201).send(teacherToReturn);
 } catch (error) {
   console.log(error);
   return res.status(500).json({message:"Internal server error"})
@@ -117,7 +107,7 @@ router.post("/loginTeacher", async (req, res) => {
         return res.status(404).send("Invalid email or password");
     }
 
-    const token = await generateAuthToken(teacherExists);
+    const token = await generateAuthToken(teacherExists._id, teacherExists.lesson);
     return res
         .status(200)
         .send({ message: "logged in successfully", Token: token });
@@ -127,11 +117,11 @@ router.post("/loginTeacher", async (req, res) => {
 
 
 router.post("/removeTeacher",[admin,auth], async (req, res) => {
-  const { teacherName} = req.body
-  const teacherExists = await teachersModel.findOne({ teacherName })
+  const { teacher} = req.body
+  const teacherExists = await teachersModel.findById(teacher)
   if (!teacherExists) return res.status(200).json({ message: "The teacher not found" })
-  await teacherModel.findOneAndDelete({ teacherName })
-  await teachersModel.findOneAndDelete({ teacherName })
+  await teacherModel.findByIdAndDelete(teacher)
+  await teachersModel.findOneAndDelete({ teacherName})
   const teacherCount = await schoolDb.findOne({})
   teacherCount.totalTeachers -= 1
   await teacherCount.save()
@@ -176,7 +166,44 @@ router.post("/addTeachersLesson",[admin,auth], async (req, res) => {
 });
 
 
+router.get(
+  "/getAllStudentsByClass/:classId",
+  [teacherAdmin, teacherAuth],
 
+  async (req, res) => {
+    const classId = req.params.classId;
+    //check the class by its name
+    const getClass = await classesModel.findById(classId);
+    if (!getClass) return res.status(404).json({ message: "Class not found" });
+
+    //get all members of the class
+    const findingClass = await classModel
+      .findOne({ classId })
+      .populate("students.studentId");
+    const allStudents = findingClass.students;
+    return res.status(200).json({ students: allStudents });
+  }
+);
+
+
+router.get(
+  "/getAllStudentsByClass/:classId",
+  [teacherAdmin, teacherAuth],
+
+  async (req, res) => {
+    const classId = req.params.classId;
+    //check the class by its name
+    const getClass = await classesModel.findById(classId);
+    if (!getClass) return res.status(404).json({ message: "Class not found" });
+
+    //get all members of the class
+    const findingClass = await classModel
+      .findOne({ classId })
+      .populate("students.studentId");
+    const allStudents = findingClass.students;
+    return res.status(200).json({ students: allStudents });
+  }
+);
 
 
 module.exports = router

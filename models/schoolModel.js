@@ -58,8 +58,10 @@ const schoolSchema = new Schema(
     totalClasses: {
       type: Number,
       default: 0,
+
       required:true
     }
+
   },{ timestamps: true });
 
 const schoolModel = mongoose.model("schoolModel", schoolSchema)

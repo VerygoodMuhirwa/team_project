@@ -3,13 +3,15 @@ const { admin } = require("../middleware/admin")
 const {auth}= require("../middleware/auth")
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-
+const nodemailer = require("nodemailer")
 const Joi = require("joi");
 const express = require("express");
 const adminModel = require("../models/adminModel");
-const lessonModel = require("../models/lessonModel");
 const marksModel = require("../models/marksModel");
 const classesModel = require("../models/classesModel");
+const teachersModel = require("../models/teachersModel");
+const studentModel = require("../models/studentModel");
+const classModel = require("../models/classModel");
 const router= express.Router()
 require("dotenv").config()
 
@@ -29,11 +31,12 @@ const client = require("twilio")(accountSid, authToken);
 //validating the user
 const validateUser = (item) => {
   const Schema = Joi.object({
-    email: Joi.string()
-      .email({ minDomainSegments: 2 })
-      .required(),
+    email: Joi.string().email({ minDomainSegments: 2 }).required(),
     phoneNumber: Joi.string().required().min(10),
-    password: Joi.string().min(6).required()});
+    pic: Joi.string().required(),
+
+    password: Joi.string().min(6).required(),
+  });
   return Schema.validate(item);
 };
 
@@ -57,7 +60,7 @@ router.post("/createUser", async (req, res) => {
   if (user) {
     return res.status(409).send("The user with that email already exists");
     }
-  //send a confirmation code
+  // // send a confirmation code
   // const confirmationCode = await generateConfirmationCode();
   // const message = await client.messages.create({
   //   from: process.env.twilioPhoneNumber,
@@ -75,7 +78,7 @@ router.post("/createUser", async (req, res) => {
 
   const salt = await bcrypt.genSalt(10);
   const harshedPassword = await bcrypt.hash(password, salt);
-  user = await adminModel.create({ email, password: harshedPassword, phoneNumber });
+  user = await adminModel.create({ email, password: harshedPassword, phoneNumber, pic });
 
   if (user) {
     return res.status(200).send(user);
@@ -115,21 +118,49 @@ router.post("/loginUser",async (req, res) => {
 
 router.post("/inviteTeacher",[admin, auth], async (req, res) => {
   const { email } = req.body;
+  const transporter = await nodemailer.createTransport({
+    service:process.env.SERVICE,
+    auth: {
+      user: process.env.user,
+      pass:process.env.pass
+    }
+  })
+const link = "http://localhost:3000/frontendPage";
+
+const mailOptions = {
+  from: process.env.email,
+  to: email,
+  subject: "Register as a teacher ",
+  html: `Click <a src="${link}">here to go to register as a teacher </a>`,
+};
+
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) {
+      console.error(err);
+return res.status(400).send({message:"Failed to send an email "})
+    } else {
+      console.log("Email sent", info.response);
+      return res.status(200).send({message:"Email sent successfully"})
+  }
+});
+
+  
 });
 
 
 router.get("/getAllTeachers", [admin, auth], async (req, res) => {
-  const allTeachers = await teachersModel.find().sort({ teacherName: 1 });
+  const allTeachers = await teachersModel.find().sort()
+if(allTeachers.length ==0)return res.status(404).send({message:"Teachers not found "})
   res.status(200).send(allTeachers);
 });
 
 router.get("/getAllStudents",[admin,auth], async (req, res) => {
   try {
-    const allStudents = await students.find().sort({ studentName: 1 });
-    if (!allStudents)
-      return res.status(404).json({ message: "No students found " });
+    const allStudents = await studentModel.find().sort({ studentName: 1 });
+if(allStudents.length ==0)return res.status(404).send({message:"No"}) 
     return res.status(200).send(allStudents);
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -150,17 +181,9 @@ router.post("/removeStudent",[admin,auth], async (req, res) => {
 
     //check the student in the school db
     const genderCount = await schoolDb.findOne({});
-    if (
-      studentExist.gender === "female" ||
-      studentExist.gender === "FEMALE" ||
-      studentExist.gender === "Female"
-    ) {
+    if (studentExist.gender.toLowerCast() === "female"  ) {
       genderCount.totalFemales -= 1;
-    } else if (
-      studentExist.gender === "male" ||
-      studentExist.gender === "MALE" ||
-      studentExist.gender === "Male"
-    ) {
+    } else if (studentExist.gender.toLowerCase() === "male" ) {
       genderCount.totalMales -= 1;
       genderCount.totalPopulation =
         genderCount.totalFemales + genderCount.totalMales;
@@ -185,24 +208,6 @@ router.post("/removeStudent",[admin,auth], async (req, res) => {
     return res.status(500).send({ Message: "Internal server error" });
   }
 });
-
-router.post(
-  "/getAllStudentsByClass",[admin, auth] ,
-
-  async (req, res) => {
-    const { className } = req.body;
-    //check the class by its name
-    const getClass = await classesModel.findOne({ className });
-    if (!getClass) return res.status(404).json({ message: "Class not found" });
-
-    //get all members of the class
-    const classExists = await classModel.findOne({ classId: getClass._id });
-    const allStudents = classExists.students;
-
-    return res.status(200).json({ students: allStudents });
-  }
-);
-
 
 router.get("/getTopFiveStudentsInSchool",[admin, auth], async (req, res) => {
  
@@ -231,11 +236,24 @@ router.post("/getMarksByClassName", async (req, res) => {
   return res.status(200).send(allMarks);
 });
 
-router.get("/getAllClasses", async (req, res) => {
-  const classes = await classesModel.find().sort({ className: 1 });
+router.get("/getAllClasses/:schoolId", async (req, res) => {
+  const schoolId = req.params.schoolId
+
+  const classes = await classesModel.find({school: schoolId}).sort({ className: 1 });
   if (!classes) return res.status(404).json({ message: "No any class found " });
   res.send(classes);
 });
+
+
+router.get("/getAllStudentsByClass/:classId",[admin, auth],async (req, res) => {
+const classId= req.params.classId
+    const getClass = await classesModel.findById(classId)
+    if (!getClass) return res.status(404).json({ message: "Class not found" });
+    const findingClass = await classModel.findOne({ classId }).populate("students.studentId")
+    const allStudents= findingClass.students
+    return res.status(200).json({ students: allStudents });
+  }
+);
 
 
 

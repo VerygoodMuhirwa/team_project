@@ -7,6 +7,7 @@ const Joi = require("joi")
 const lessonModel = require("../models/lessonModel")
 const { teacherAdmin } = require("../middleware/teacherAdmin")
 const { teacherAuth } = require("../middleware/teacherAuth")
+const classesModel = require("../models/classesModel")
 
 const validateMarks = (item) => {
     const Schema = new Joi.object({
@@ -22,33 +23,20 @@ const validateMarks = (item) => {
 }
 
 router.post("/addMarks",[teacherAdmin,teacherAuth], async (req, res) => {
-    const { error } = validateMarks(req.body)
-    if(error)return res.status(400).send(error.details[0].message)
     try {
-    
-        const lessonName= req.user.lessonName
-    const {  studentName, className, quizDescription, comment, outOf, marks } = req.body
-    console.log(req.body);
-//find if the student by his class name and his or her name 
-    const student = await studentsModel.findOne({ studentName, className })
-    if (!student) return res.status(404).json({ message: "Student not found" })
-    await marksModel.create({studentId:student._id,studentName, className})
-    const lessonExists = await lessonModel.findOne({ lessonName })
-    if (!lessonExists) return res.status(404).json({ message: "Lesson not found " })
+        const { student , Class, marks, outOf, quizDescription, comment } = req.body
+        const studentExists = await studentsModel.findById(student) 
+        if (!studentExists) return res.status(404).send({ message: "Student not found " }) 
+        const classExists = await classesModel.findById(Class)
+        if (!classExists) return res.status(404).send({ message: "The student doesn't belong to the specified class" })
         
-    const newMarks = await marksModel.findOne({});
-
-    newMarks.marks.push({ marks,lessonName,outOf,  quizDescription,comment })
-    newMarks.totalMarks += marks
+        const newMarks = await marksModel.create({ student, Class, marks: [{ marks, outOf, quizDescription, comment, lesson: req.user.lesson }] })
     
-    newMarks.totalOutOfMarks += outOf
-    newMarks.percentage = (newMarks.totalMarks / newMarks.totalOutOfMarks) * 100;
-    await newMarks.save();
-    console.log(newMarks);
-    res.status(200).send(newMarks)
-} catch (error) {
-    console.log(error);
-    return res.status(500).json({message:"Internal server error"})
+        return res.status(201).send(newMarks)
+
+    } catch (error) {
+        return res.status(500).send({message:"Server error"})
+   
 }
 })
 

@@ -3,32 +3,23 @@ const Joi = require("joi");
 const studentDb = require("../models/studentModel");
 const express = require("express")
 const router = express.Router()
-const students = require("../models/studentsModel")
-const { admin } = require("../middleware/admin")
-const { auth } = require("../middleware/auth")
-const { teacherAuth } = require("../middleware/teacherAuth")
-const {teacherAdmin}= require("../middleware/teacherAdmin")
 const jwt= require("jsonwebtoken")
-const marksModel= require("../models/marksModel");
-const studentsModel = require("../models/studentsModel");
-const classesModel = require("../models/classesModel");
-
+const {teacherAdmin} = require("../middleware/teacherAdmin")
 const {studentAuth}= require("../middleware/studentAuth")
-const {studentAdmin} = require("../middleware/studentAdmin")
-const classModel = require("../models/classModel");
-const schoolDb= require("../models/schoolModel")
+const {studentAdmin} = require("../middleware/studentAdmin");
+const studentsModel = require("../models/studentsModel");
+const studentModel = require("../models/studentModel");
 const validateStudent = (item) => {
   const Schema = new Joi.object({
-    studentName: Joi.string().min(3).required(),
-    className: Joi.string().min(3).required(),
+    student: Joi.string().min(3).required(),
     gender: Joi.string().min(4).required(),
-    
+    pic: Joi.string().required(),
+    Class: Joi.string().required(),
+    school: Joi.string().required(),
     email: Joi.string().email({ minDomainSegments: 2 }).required(),
-    password: Joi.string()
-      .min(6)
-      .required() });
-
-  return Schema.validate(item);
+    password: Joi.string().min(6).required(),
+  });
+return Schema.validate(item)
 };
 
 
@@ -40,54 +31,25 @@ const generateAuthToken = (item) => {
 };
 
 
-router.post("/registerStudent",async (req, res) => {
-  const { error } = validateStudent(req.body);
-  if (error) return res.status(404).send({ "Error": error.details[0].message });
-
+router.post("/registerStudent", async (req, res) => {
+  const { error } = validateStudent(req.body)
+  if(error)return res.status(400).send(error.details[0].message)
   try {
-    const { studentName,gender, pic,  className, email, password } = req.body;
-
-    const studentExistsInSchool = await students
-      .findOne({ studentName, className, gender })
-      .exec();
-    if (!studentExistsInSchool)
-      return res
-        .status(404)
-        .json({ message: "Not allowed to create the account " });
-
-    
-    
-    const studentExists = await studentDb.findOne({ email });
-    if (studentExists) {
-      return res.status(409).send("The student with that email already exists");
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const harshedPassword = await bcrypt.hash(password, salt);
-
-
-    //insert the schoolid for the student 
-    const studentSchoolId= studentExistsInSchool._id
-    const newStudent = await studentDb.create({
-      email,
-      password: harshedPassword,
-      className,
-      pic,
-  studentSchoolId:studentSchoolId,
-      studentName,
-    });
-
-
-    if (!newStudent)
-      return res
-        .status(404)
-        .json({ message: "Faced an error when creating a user " });
-    
-  
-    
-    return res.status(201).send(newStudent);
+    let { student, school, Class,pic, email, password, gender } = req.body
+    gender = gender.toLowerCase()
+    const studentExistInSchoool = await studentsModel.findOne({_id: student, gender, Class, school })
+    if (!studentExistInSchoool)return res.status(409).send({ message: "Not allowed to create account  " })
+    const studentExists = await studentModel.findOne({ email })
+    if (studentExists) return res.status(409).send({ message: "The student already exists " })
+    const salt = await bcrypt.genSalt(10)
+    const harshedPassword = await bcrypt.hash(password, salt)
+   let  newStudent = await studentModel.create({ student,password:harshedPassword, email, gender,pic, Class, school })
+   const newLearner  = await studentModel.find({_id:newStudent._id}).populate("Class").populate("school").populate("student")
+    return res.status(201).send(newLearner)
   } catch (error) {
-    return res.status(500).json({message:"Internal server errror"})
+    console.log(error);
+    return res.status(500).json({ message: "Server errror" })
+    
   }
 }
 )
@@ -95,79 +57,43 @@ router.post("/registerStudent",async (req, res) => {
 
 
 router.post("/loginStudent",async (req, res) => {
-  const { email, password } = req.body;
-  const student = await studentDb.findOne({ email });
-  if (!student) {
-    return res.status(404).send("Invalid email or password");
-  }
-
-  const salt = await bcrypt.genSalt(10);
-  const harshedPassword = await bcrypt.hash(password, salt);
-
-  if (!student.password == harshedPassword) {
-    return res.status(404).send("Invalid email or password");
-  }
-
-  const token = await generateAuthToken(student);
-  return res
-    .status(200)
-    .send({ message: "logged in successfully", Token: token });
+ try {
+   const { email, password } = req.body;
+   const student = await studentModel.findOne({ email });
+   if (!student) {
+     return res.status(404).send("Invalid email or password");
+   }
+   const salt = await bcrypt.genSalt(10);
+   const harshedPassword = await bcrypt.hash(password, salt);
+if (!student.password == harshedPassword) {
+     return res.status(404).send("Invalid email or password");
+   }
+const token = await generateAuthToken(student);
+   return res
+     .status(200)
+     .send({ message: "logged in successfully", Token: token });
+ } catch (error) {
+  return res.status(500).json({message:"Server error"})
+ }
 })
 
 
-router.get("/searchLesson",[admin,auth], async (req, res) => {
-  const lessonName = req.query.search;
+router.get("/searchLesson", [studentAdmin, studentAuth], async (req, res) => {
 
-  try {
-    const lesson = await marksModel.findOne({
-      "marks.lessonName": { $regex: lessonName, $options: "i" },
-      "marks.studentId": req.user.id,
-    });
-
-    if (!lesson) {
-      return res
-        .status(404)
-        .json({ message: "Lesson not found for the student." });
-    }
+})
 
 
-    const marks = lesson.marks.find((mark) => mark.lessonName === lessonName);
-
-    res.send(marks);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error" });
-  }
-});
-
-
-
-router.post(
-  "/getAllStudentsByClass",[teacherAdmin,teacherAuth],
- 
+router.get(
+  "/getStudentMarks",
+  [studentAdmin, studentAuth],
   async (req, res) => {
-    const { className } = req.body
-    //check the class by its name
-    const getClass= await classesModel.findOne({className})
-    if (!getClass) return res.status(404).json({ message: "Class not found" })
-    
-   //get all members of the class 
-    const classExists = await classModel.findOne({ classId: getClass._id })
-    const allStudents = classExists.students
-    
-
-    return res.status(200).json({students:allStudents})
+    const studentName = req.user.studentName;
+    const studentMarks = await marksModel.findOne({ studentName });
+    if (!studentMarks)
+      return res.status(404).json({ message: "no marks inserted yet" });
+    await res.status(200).send(studentMarks);
   }
-
 );
-
-
-router.get("/getStudentMarks",[studentAdmin, studentAuth], async (req, res) => {
-  const studentName = req.user.studentName
-  const studentMarks = await marksModel.findOne({ studentName })
-  if(!studentMarks)return res.status(404).json({message:"no marks inserted yet"})
-await res.status(200).send(studentMarks)
-})
-
 
 
 
